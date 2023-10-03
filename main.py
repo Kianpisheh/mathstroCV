@@ -1,62 +1,64 @@
+import os
+
 import cv2
 import numpy as np
 
+from utils import resize_max
+from features import get_colors
+
 cap = cv2.VideoCapture("http://10.0.0.200:4747/video")
 
-color_thresh = {
-    "red": [[0, 100, 20], [10, 255, 255]],
-    "green": [[40, 40, 40], [90, 255, 255]],
-    "blue": [[90, 50, 50], [130, 255, 255]],
-    "yellow": [[20, 100, 100], [45, 255, 255]],
-}
 
+image_seq_path = "./images"
+source = "image-seq"
+images_files = os.listdir(image_seq_path)
+
+i = 0
 while True:
-    ret, frame = cap.read(0)
-    frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
-    frame = cv2.resize(
-        frame, ((int(frame.shape[1] * 0.7)), (int(frame.shape[0] * 0.7)))
-    )
-    frame_filtered = cv2.GaussianBlur(frame, (7, 7), 0)
-
-    hsv_image = cv2.cvtColor(frame_filtered, cv2.COLOR_BGR2HSV)
-
-    features = {}
-    # color features
-    for color in ["red", "green", "blue", "yellow"]:
-        # extract red pixels
-        feat_mask = cv2.inRange(
-            hsv_image,
-            np.array(color_thresh[color][0]),
-            np.array(color_thresh[color][1]),
+    if i == len(images_files):
+        break
+    if source == "video":
+        ret, frame = cap.read(0)
+        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        frame = cv2.resize(
+            frame, ((int(frame.shape[1] * 0.7)), (int(frame.shape[0] * 0.7)))
         )
+    elif source == "image-seq":
+        frame = cv2.imread(image_seq_path + "/" + images_files[i])
+        frame = resize_max(frame, 500)
+        i += 1
 
-        if color == "red":
-            feat_mask = feat_mask | cv2.inRange(
-                hsv_image,
-                np.array([170, 70, 50]),
-                np.array([180, 255, 255]),
-            )
-
-        features[color] = cv2.bitwise_and(
-            frame_filtered, frame_filtered, mask=feat_mask
-        )
-
-        # creating a black border border for the frame
-        black = [128, 128, 128]
-        features[color] = cv2.copyMakeBorder(
-            features[color], 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=black
-        )
+    frame_filtered = cv2.GaussianBlur(frame, (11, 11), 0)
+    features = get_colors(frame_filtered)
 
     # edge features
     # Apply Canny edge detection
     gray_frame = cv2.cvtColor(frame_filtered, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray_frame, 100, 200)
+    edges = cv2.Canny(gray_frame, 100, 200, apertureSize=3)
     gradient_x = cv2.Sobel(edges, cv2.CV_64F, 1, 0, ksize=3)
     gradient_y = cv2.Sobel(edges, cv2.CV_64F, 0, 1, ksize=3)
     gradient_magnitude = np.sqrt(gradient_x**2 + gradient_y**2)
     gradient_direction = np.arctan2(gradient_y, gradient_x) * 180 / np.pi
     # Define angle threshold for diagonal edges
-    angle_threshold = (33, 60)
+    angle_threshold = (35, 55)
+
+    # Apply the Hough Line Transform
+    lines = cv2.HoughLines(
+        edges, 1.5, np.pi / 180, threshold=80
+    )  # You can adjust the threshold
+
+    # Draw the detected lines on the original image
+    if lines is not None:
+        for rho, theta in lines[:, 0]:
+            a = np.cos(theta)
+            b = np.sin(theta)
+            x0 = a * rho
+            y0 = b * rho
+            x1 = int(x0 + 1000 * (-b))
+            y1 = int(y0 + 1000 * (a))
+            x2 = int(x0 - 1000 * (-b))
+            y2 = int(y0 - 1000 * (a))
+            cv2.line(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)  # Draw the line in red
 
     # Create a mask for diagonal edges
     diagonal_edge_mask = (
@@ -86,6 +88,16 @@ while True:
     all_iimages = cv2.vconcat((row1, row2))
     cv2.imshow("Original Image", all_iimages)
 
-    k = cv2.waitKey(30)
-    if k == 27:
-        break
+    if source == "image-seq":
+        k = cv2.waitKey(0)
+        if k != 27:
+            continue
+        else:
+            cv2.destroyAllWindows()
+            break
+
+    elif source == "video":
+        k = cv2.waitKey(30)
+        if k == 27:
+            cv2.destroyAllWindows()
+            break
