@@ -72,8 +72,8 @@ while True:
     frame = cv2.copyMakeBorder(frame, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=black)
 
     # display frames and the extracted features
-    row1 = cv2.hconcat((frame, features["red"], features["green"]))
-    row2 = cv2.hconcat((features["blue"], features["yellow"], frame))
+    row1 = cv2.hconcat((frame, features["red"], features["green"]), features["blue"])
+    row2 = cv2.hconcat((features["yellow"], edges, diagonal_edge_mask, frame))
     all_iimages = cv2.vconcat((row1, row2))
     cv2.imshow("Original Image", all_iimages)
 
