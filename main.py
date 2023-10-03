@@ -14,9 +14,9 @@ while True:
     ret, frame = cap.read(0)
     frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     frame = cv2.resize(
-        frame, ((int(frame.shape[1] * 0.5)), (int(frame.shape[0] * 0.5)))
+        frame, ((int(frame.shape[1] * 0.7)), (int(frame.shape[0] * 0.7)))
     )
-    frame_filtered = cv2.GaussianBlur(frame, (5, 5), 0)
+    frame_filtered = cv2.GaussianBlur(frame, (7, 7), 0)
 
     hsv_image = cv2.cvtColor(frame_filtered, cv2.COLOR_BGR2HSV)
 
@@ -68,29 +68,24 @@ while True:
 
     dilated_image = cv2.dilate(diagonal_edge_mask, kernel, iterations=1)
     diagonal_edge_mask = cv2.bitwise_and(dilated_image, edges)
+    black = [128, 128, 128]
+    edges = cv2.copyMakeBorder(edges, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=black)
+    diagonal_edge_mask = cv2.copyMakeBorder(
+        diagonal_edge_mask, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=black
+    )
+    edges = cv2.merge((edges, edges, edges))
+    diagonal_edge_mask = cv2.merge(
+        (diagonal_edge_mask, diagonal_edge_mask, diagonal_edge_mask)
+    )
 
     frame = cv2.copyMakeBorder(frame, 5, 5, 5, 5, cv2.BORDER_CONSTANT, value=black)
 
     # display frames and the extracted features
-    row1 = cv2.hconcat((frame, features["red"], features["green"]), features["blue"])
+    row1 = cv2.hconcat((frame, features["red"], features["green"], features["blue"]))
     row2 = cv2.hconcat((features["yellow"], edges, diagonal_edge_mask, frame))
     all_iimages = cv2.vconcat((row1, row2))
     cv2.imshow("Original Image", all_iimages)
 
-    cv2.imshow("edges", edges)
-    cv2.imshow("edges2", diagonal_edge_mask)
-
     k = cv2.waitKey(30)
     if k == 27:
         break
-
-
-# Load an image
-# image = cv2.imread('your_image.jpg', cv2.IMREAD_GRAYSCALE)
-
-# # Apply the Sobel filter for vertical edge detection
-# sobel_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)
-
-# # Convert the resulting image to an absolute value and scale it to the range [0, 255]
-# sobel_x = np.absolute(sobel_x)
-# sobel_x = np.uint8(255 * sobel_x / np.max(sobel_x))
