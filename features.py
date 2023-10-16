@@ -95,22 +95,36 @@ def get_edges(frame):
     grad_x = cv2.Sobel(edges, cv2.CV_64F, 1, 0, ksize=3)
     grad_y = cv2.Sobel(edges, cv2.CV_64F, 0, 1, ksize=3)
 
-    grad_dir = np.arctan2(grad_y, grad_x) * 180 / np.pi
+    grad_mag = cv2.magnitude(grad_x, grad_y)
+    grad_mag = cv2.normalize(grad_mag, None, 0, 255, cv2.NORM_MINMAX)
+    grad_dir = np.arctan2(grad_x, grad_y) * 180 / np.pi
 
     # edge quantization
+    edge_thresholds = {
+        "0": [-15, 15],
+        "45": [30, 60],
+        "90": [75, 105],
+        "135": [-60, -30],
+    }
     edge_dir = {}
-    edge_dir["0"] = (grad_dir >= -20 & grad_dir <= 20).astype(np.uint8) * 1
-    edge_dir["45"] = (grad_dir >= 35 & grad_dir <= 55).astype(np.uint8) * 2
-    edge_dir["90"] = (grad_dir >= 75 & grad_dir <= 105).astype(np.uint8) * 3
-    edge_dir["135"] = (grad_dir >= -55 & grad_dir <= -35).astype(np.uint8) * 4
+    for i, (direction, th) in enumerate(edge_thresholds.items()):
+        edge_dir[direction] = np.bitwise_and(grad_dir >= th[0], grad_dir <= th[1])
+        edge_dir[direction] = np.bitwise_and(edge_dir[direction], grad_mag > 200)
+        edge_dir[direction] = edge_dir[direction].astype(np.uint8) * (i + 1)
+
+    # TODO: edge cleanup
+
+    # cv2.imshow("e", edge_dir["0"] * 255)
+    # k = cv2.waitKey(0)
+    # if k == 27:
+    #     cv2.destroyAllWindows()
+    #     return
 
     return edge_dir["0"] + edge_dir["45"] + edge_dir["90"] + edge_dir["135"]
 
 
 def get_edge_features(edges_data):
     num_edges = [0, 0, 0, 0]  # 0-45-90-135
-    # number of all pixels
-    N = edges_data.size
 
     for i in range(edges_data.shape[0]):
         for j in range(edges_data.shape[1]):
@@ -125,7 +139,7 @@ def get_edge_features(edges_data):
 
     edge_feature = [0, 0, 0, 0]
     for i in range(4):
-        edge_feature[i] = num_edges[i] / N
+        edge_feature[i] = num_edges[i] / sum(num_edges)
 
     return edge_feature
 
